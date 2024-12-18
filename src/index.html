@@ -3,11 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stepping Stones</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>Squid Game Glass Bridge</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <canvas class="webgl"></canvas>
-    <script type="module" src="./script.js"></script>
+    <div id="hearts-container">💛💛💛</div>
+    <button id="replay-button">Play Again</button>
+    <div id="win-screen" class="win-screen">
+        <h1>🎉 Congratulations! 🎉</h1>
+        <p>You've made it across the bridge!</p>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

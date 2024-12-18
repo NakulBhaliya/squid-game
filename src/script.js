@@ -1,13 +1,6 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import GUI from 'lil-gui'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-
-/**
- * Base
- */
-// Debug
-const gui = new GUI()
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -15,48 +8,256 @@ const canvas = document.querySelector('canvas.webgl')
 // Scene
 const scene = new THREE.Scene()
 
+// Sizes
+const sizes = {
+    width: window.innerWidth,
+    height: window.innerHeight
+}
+
+// Camera
+const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
+camera.position.set(0, 1.8, 1.9)
+scene.add(camera)
+
+// Controls
+const controls = new OrbitControls(camera, canvas)
+controls.target.set(0, 0.5, 0)
+controls.enableDamping = true
+
 /**
  * Models
  */
 const gltfLoader = new GLTFLoader()
 
-let mixer = null
-let characterMixer = null
-let character = null
-let idleAction = null
-let jumpAction = null
-let isJumping = false
-let currentPairIndex = 0
-let hasClickedInCurrentPair = false
-let weakPlanes = new Set()
-let isFalling = false
+let character = null;
+let characterMixer = null;
+let idleAction = null;
+let jumpAction = null;
+let isJumping = false;
+let isFalling = false;
+let currentPairIndex = 0;
+let hearts = 3;
+let isGameOver = false;
+let weakPlanes = new Set();
+let replayButton = document.getElementById('replay-button');
+let heartsContainer = document.getElementById('hearts-container');
 
-// Function to randomly select weak planes (one from each pair)
-function selectWeakPlanes() {
-    for(let i = 0; i < 15; i++) {
-        const pairStart = i * 2 + 1;
-        const weakPlane = Math.random() < 0.5 ? pairStart : pairStart + 1;
-        weakPlanes.add(weakPlane);
-    }
-    console.log('Weak planes:', Array.from(weakPlanes));
+const gameOverlay = document.createElement('div');
+gameOverlay.className = 'game-overlay';
+document.body.appendChild(gameOverlay);
+
+const overlayContent = document.createElement('div');
+overlayContent.className = 'game-overlay-content';
+gameOverlay.appendChild(overlayContent);
+
+const heartsDisplay = document.createElement('div');
+heartsDisplay.className = 'hearts-display';
+overlayContent.appendChild(heartsDisplay);
+
+function updateHearts() {
+    heartsContainer.innerHTML = Array(hearts)
+        .fill(`<span class="heart-icon">💛</span>`)
+        .join('');
 }
 
-// Load main game model
-gltfLoader.load(
-    './models/squidgamecomp2.glb',
-    (gltf) =>
-    {
-        gltf.scene.scale.set(1, 1, 1)
-        gltf.scene.position.set(0, 0, 0)
-        gltf.scene.rotation.set(0, 0, 0)
-        scene.add(gltf.scene)
+function showGameOver() {
+    gameOverlay.style.display = 'flex';
+    
+    // Create game over text as a button
+    const gameOverText = document.createElement('button');
+    gameOverText.textContent = 'GAME OVER';
+    gameOverText.style.color = '#ff0000';
+    gameOverText.style.fontSize = '64px';
+    gameOverText.style.fontFamily = 'Arial, sans-serif';
+    gameOverText.style.textShadow = '0 0 20px #ff0000';
+    gameOverText.style.opacity = '0';
+    gameOverText.style.transition = 'opacity 1s ease-in';
+    gameOverText.style.background = 'none';
+    gameOverText.style.border = 'none';
+    gameOverText.style.cursor = 'pointer';
+    gameOverText.onclick = () => window.location.reload();
+    gameOverText.onmouseover = () => {
+        gameOverText.style.transform = 'scale(1.1)';
+        gameOverText.style.textShadow = '0 0 30px #ff0000';
+    };
+    gameOverText.onmouseout = () => {
+        gameOverText.style.transform = 'scale(1)';
+        gameOverText.style.textShadow = '0 0 20px #ff0000';
+    };
+    overlayContent.appendChild(gameOverText);
+    
+    heartsDisplay.innerHTML = Array(3)
+        .fill(`<span class="heart-icon">💛</span>`)
+        .join('');
+    
+    const heartIcons = heartsDisplay.querySelectorAll('.heart-icon');
+    let currentHeart = 2; // Start with the last heart
+    
+    const blinkInterval = setInterval(() => {
+        if (currentHeart >= 0) {
+            heartIcons[currentHeart].classList.add('blink');
+            currentHeart--;
+            
+            // After last heart disappears, show game over text
+            if (currentHeart < 0) {
+                setTimeout(() => {
+                    gameOverText.style.opacity = '1';
+                    replayButton.classList.add('visible');
+                }, 1000);
+            }
+        } else {
+            clearInterval(blinkInterval);
+        }
+    }, 1000);
+}
 
-        // Animation
-        mixer = new THREE.AnimationMixer(gltf.scene)
-        const action = mixer.clipAction(gltf.animations[2])
-        action.play()
+function showHeartLossAnimation(remainingHearts) {
+    // Create and show the heart loss animation
+    const heartLoss = document.createElement('div');
+    heartLoss.className = 'heart-lost';
+    heartLoss.textContent = '💛';
+    document.body.appendChild(heartLoss);
+    
+    // Remove the element after animation completes
+    heartLoss.addEventListener('animationend', () => {
+        document.body.removeChild(heartLoss);
+    });
+    
+    // Animate the specific heart in the hearts container
+    const heartIcons = heartsContainer.querySelectorAll('.heart-icon');
+    if (heartIcons[remainingHearts]) {
+        heartIcons[remainingHearts].classList.add('blink');
     }
-)
+}
+
+function showFallAnimation(currentHearts) {
+    // Remove any existing fall-hearts container
+    const existingHearts = document.querySelector('.fall-hearts');
+    if (existingHearts) {
+        document.body.removeChild(existingHearts);
+    }
+
+    // Create hearts container above the replay button
+    const fallHearts = document.createElement('div');
+    fallHearts.className = 'fall-hearts';
+    document.body.appendChild(fallHearts);
+    
+    // Add only the remaining hearts (currentHearts + 1 because we're about to lose one)
+    for(let i = 0; i < currentHearts + 1; i++) {
+        const heart = document.createElement('span');
+        heart.className = 'fall-heart';
+        heart.textContent = '💛';
+        // Make the last heart disappear
+        if (i === currentHearts) {
+            heart.classList.add('disappear');
+        }
+        fallHearts.appendChild(heart);
+    }
+    
+    // Add click handler to replay button to remove hearts
+    const removeHearts = () => {
+        const hearts = document.querySelector('.fall-hearts');
+        if (hearts) {
+            document.body.removeChild(hearts);
+        }
+        replayButton.removeEventListener('click', removeHearts);
+    };
+    replayButton.addEventListener('click', removeHearts);
+}
+
+function startFalling(plane, characterObj) {
+    if (!characterObj || isGameOver) return;
+    
+    isFalling = true;
+    
+    // Stop any current animations
+    if (jumpAction) jumpAction.stop();
+    if (idleAction) idleAction.stop();
+    
+    addToPhysics(plane);
+    const physics = {
+        object: characterObj,
+        velocity: 0,
+        bounceCount: 0,
+        maxBounces: 1, // Reduced bounces
+        bounceFactor: 0.3, // Reduced bounce height
+        isResting: false
+    };
+    fallingObjects.push(physics);
+
+    // Move camera to side view during fall
+    const originalCameraPos = camera.position.clone();
+    camera.position.set(
+        characterObj.position.x + 1.2,
+        characterObj.position.y + 0.4,
+        characterObj.position.z + 0.5
+    );
+    controls.target.copy(characterObj.position);
+
+    setTimeout(() => {
+        hearts--;
+        updateHearts();
+        
+        if (hearts <= 0) {
+            isGameOver = true;
+            showGameOver();
+            replayButton.textContent = 'Start Again';
+            replayButton.onclick = () => {
+                const hearts = document.querySelector('.fall-hearts');
+                if (hearts) {
+                    document.body.removeChild(hearts);
+                }
+                window.location.reload();
+            };
+        } else {
+            replayButton.textContent = 'Try Again';
+            replayButton.onclick = () => {
+                const hearts = document.querySelector('.fall-hearts');
+                if (hearts) {
+                    document.body.removeChild(hearts);
+                }
+                resetCharacter();
+                // Reset camera and character
+                camera.position.copy(originalCameraPos);
+                controls.target.set(0, 0.5, 0);
+                character.rotation.set(0, 0, 0);
+                fallingObjects = [];
+                isFalling = false;
+                // Restart idle animation
+                if (idleAction) {
+                    idleAction.reset();
+                    idleAction.play();
+                }
+            };
+        }
+        replayButton.classList.add('visible');
+        showFallAnimation(hearts);
+    }, 2000);
+}
+
+function resetCharacter() {
+    if (!character) return;
+    
+    character.position.set(0, 1.3, 1.35);
+    character.rotation.set(0, 0, 0);
+    
+    isJumping = false;
+    isFalling = false;
+    currentPairIndex = 0;
+    
+    replayButton.classList.remove('visible');
+}
+
+function selectWeakPlanes() {
+    for(let i = 0; i < 15; i++) {
+        const pairStart = i * 2;
+        const weakPlane = Math.random() < 0.5 ? `plane${pairStart + 1}` : `plane${pairStart + 2}`;
+        weakPlanes.add(weakPlane);
+    }
+}
+
+// Select weak planes at start
+selectWeakPlanes();
 
 // Load character model
 gltfLoader.load(
@@ -93,37 +294,37 @@ gltfLoader.load(
     }
 )
 
-// Call this after creating all planes
-selectWeakPlanes();
+// Load main game model
+gltfLoader.load(
+    './models/squidgamecomp2.glb',
+    (gltf) =>
+    {
+        gltf.scene.scale.set(1, 1, 1)
+        gltf.scene.position.set(0, 0, 0)
+        gltf.scene.rotation.set(0, 0, 0)
+        scene.add(gltf.scene)
+    }
+)
 
 let gravity = 9.81;
 let fallingObjects = [];
-let floorY = 0.18; // Match the floor plane's Y position
+let floorY = 0.18;
 
 function addToPhysics(object) {
-    fallingObjects.push({
+    const physics = {
         object: object,
         velocity: 0,
         isResting: false,
-        startRotation: object.rotation.clone(),
-        rotationSpeed: {
-            x: (Math.random() - 0.5) * 5,
-            y: (Math.random() - 0.5) * 5,
-            z: (Math.random() - 0.5) * 5
-        },
-        bounceOffset: Math.random() * 0.5 // Random bounce timing offset
-    });
+        bounceOffset: object === character ? 0.1 : 0,
+        startRotation: {
+            x: object.rotation.x,
+            y: object.rotation.y,
+            z: object.rotation.z
+        }
+    };
+    fallingObjects.push(physics);
 }
 
-function startFalling(plane, characterObj) {
-    isFalling = true;
-    addToPhysics(plane);
-    addToPhysics(characterObj);
-}
-
-/**
- * Floor
- */
 const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(10, 10),
     new THREE.MeshStandardMaterial({
@@ -137,7 +338,6 @@ floor.rotation.x = - Math.PI * 0.5
 floor.position.set(0, 0, 0)
 scene.add(floor)
 
-// Create invisible physics floor
 const physicsFloorGeometry = new THREE.PlaneGeometry(10, 10)
 const physicsFloorMaterial = new THREE.MeshStandardMaterial({
     transparent: true,
@@ -149,9 +349,6 @@ physicsFloor.rotation.x = -Math.PI * 0.5
 physicsFloor.position.y = 0.18
 scene.add(physicsFloor)
 
-/**
- * Lights
- */
 const ambientLight = new THREE.AmbientLight(0xffffff, 2.4)
 ambientLight.position.set(0, 0, 0)
 scene.add(ambientLight)
@@ -167,14 +364,6 @@ directionalLight.shadow.camera.bottom = - 7
 directionalLight.position.set(0, 0, 0)
 scene.add(directionalLight)
 
-/**
- * Sizes
- */
-const sizes = {
-    width: window.innerWidth,
-    height: window.innerHeight
-}
-
 window.addEventListener('resize', () =>
 {
     sizes.width = window.innerWidth
@@ -187,34 +376,21 @@ window.addEventListener('resize', () =>
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
 
-/**
- * Camera
- */
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-camera.position.set(0, 1.8, 1.9)
-scene.add(camera)
-
-const controls = new OrbitControls(camera, canvas)
-controls.target.set(0, 0.5, 0)
-controls.enableDamping = true
-
-// Update plane creation with frosted glass material
 const planeGeometry = new THREE.PlaneGeometry(0.5, 0.5)
 const planeMaterial = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     transparent: true,
     opacity: 0.6,
-    roughness: 0.5,    // Increased for frosted look
+    roughness: 0.5,
     metalness: 0.1,
-    transmission: 0.6,  // Reduced for more frosting
+    transmission: 0.6,
     thickness: 0.5,
-    clearcoat: 0.1,    // Slight clearcoat for shine
-    clearcoatRoughness: 0.4,  // Rough clearcoat for frosted effect
+    clearcoat: 0.1,
+    clearcoatRoughness: 0.4,
     side: THREE.DoubleSide,
-    envMapIntensity: 0.5  // Subtle environment reflections
+    envMapIntensity: 0.5
 })
 
-// Add some noise to the material for frosted texture
 const textureLoader = new THREE.TextureLoader()
 const noiseTexture = textureLoader.load('./textures/noise.png', (texture) => {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping
@@ -224,7 +400,6 @@ const noiseTexture = textureLoader.load('./textures/noise.png', (texture) => {
     planeMaterial.needsUpdate = true
 })
 
-// Create planes
 const planes = [];
 const startX = -0.12;
 const startZ = 1.11;
@@ -253,85 +428,85 @@ const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
 
 window.addEventListener('click', (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera)
-
-    const intersects = raycaster.intersectObjects(planes)
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(planes);
 
     if (intersects.length > 0 && !isJumping && !isFalling && character && idleAction && jumpAction) {
         const clickedPlane = intersects[0].object;
         const planeNumber = parseInt(clickedPlane.name.replace('plane', ''));
-        
         const validPairStart = currentPairIndex * 2 + 1;
         const validPairEnd = validPairStart + 1;
         
         if (planeNumber >= validPairStart && planeNumber <= validPairEnd) {
             isJumping = true;
+            
+            // Start jump animation
+            idleAction.stop();
+            jumpAction.reset();
+            jumpAction.setLoop(THREE.LoopOnce);
+            jumpAction.clampWhenFinished = true;
+            jumpAction.play();
 
-            if (!hasClickedInCurrentPair) {
-                currentPairIndex++;
-                hasClickedInCurrentPair = true;
-                console.log(`Unlocked planes ${currentPairIndex * 2 + 1} and ${currentPairIndex * 2 + 2}`);
-            }
-
-            idleAction.stop()
-            jumpAction.setLoop(THREE.LoopOnce)
-            jumpAction.reset()
-            jumpAction.play()
-
-            const targetX = clickedPlane.position.x
-            const targetZ = clickedPlane.position.z
-            const startX = character.position.x
-            const startZ = character.position.z
-            const startY = 1.3
-            const targetY = 1.258
-            const duration = 1.0
-            const startTime = Date.now()
+            const targetX = clickedPlane.position.x;
+            const targetZ = clickedPlane.position.z;
+            const startX = character.position.x;
+            const startZ = character.position.z;
+            const duration = 0.5;
+            const startTime = Date.now();
 
             function animateMove() {
-                const elapsedTime = (Date.now() - startTime) / 1000
-                const progress = Math.min(elapsedTime / duration, 1)
+                const elapsedTime = (Date.now() - startTime) / 1000;
+                const progress = Math.min(elapsedTime / duration, 1);
 
-                character.position.x = startX + (targetX - startX) * progress
-                character.position.z = startZ + (targetZ - startZ) * progress
-                character.position.y = startY + (targetY - startY) * progress
+                character.position.x = startX + (targetX - startX) * progress;
+                character.position.z = startZ + (targetZ - startZ) * progress;
+                character.position.y = 1.258 + Math.sin(progress * Math.PI) * 0.08;
 
                 if (progress < 1) {
-                    requestAnimationFrame(animateMove)
+                    requestAnimationFrame(animateMove);
                 } else {
-                    character.position.x = targetX
-                    character.position.z = targetZ
-                    character.position.y = targetY
-                    
-                    if (weakPlanes.has(planeNumber)) {
+                    character.position.x = targetX;
+                    character.position.z = targetZ;
+                    character.position.y = 1.258;
+
+                    // Stop jump animation and return to idle
+                    jumpAction.stop();
+                    idleAction.reset();
+                    idleAction.play();
+                    isJumping = false;
+
+                    if (weakPlanes.has(clickedPlane.name)) {
                         startFalling(clickedPlane, character);
                     } else {
-                        jumpAction.stop()
-                        idleAction.play()
-                        isJumping = false
-                        hasClickedInCurrentPair = false
+                        currentPairIndex++;
                     }
                 }
             }
-
-            animateMove()
-
-            jumpAction.addEventListener('finished', () => {
-                jumpAction.stop()
-                idleAction.play()
-                isJumping = false
-            })
+            
+            animateMove();
         } else {
-            console.log(`Can only click planes ${validPairStart} or ${validPairEnd} now`)
+            console.log(`Can only click planes ${validPairStart} or ${validPairEnd} now`);
         }
     }
-})
+});
 
-/**
- * Renderer
- */
+replayButton.addEventListener('click', () => {
+    gameOverlay.style.display = 'none';
+    if (hearts <= 0) {
+        hearts = 3;
+        updateHearts();
+        isGameOver = false;
+        currentPairIndex = 0;
+        fallingObjects = [];
+    } else {
+        currentPairIndex = Math.max(0, Math.floor((character.position.z - startZ) / zSpacing));
+    }
+    resetCharacter();
+});
+
 const renderer = new THREE.WebGLRenderer({
     canvas: canvas
 })
@@ -340,85 +515,69 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-/**
- * Animate
- */
 const clock = new THREE.Clock()
 let previousTime = Date.now()
 
 const tick = () =>
 {
     const currentTime = Date.now()
-    const deltaTime = (currentTime - previousTime) / 1000
+    // Adjusted slow motion to 0.35
+    const deltaTime = isFalling ? (currentTime - previousTime) / 1000 * 0.35 : (currentTime - previousTime) / 1000;
     previousTime = currentTime
 
-    // Update physics for falling objects
-    fallingObjects.forEach((obj) => {
+    controls.update()
+
+    // Update character animations only if not falling
+    if (characterMixer && !isFalling) {
+        characterMixer.update(deltaTime)
+    }
+
+    // Update physics and camera
+    fallingObjects.forEach(obj => {
         if (!obj.isResting) {
-            // Apply gravity
-            obj.velocity += gravity * deltaTime;
-            
-            // Update position
-            const newY = obj.object.position.y - obj.velocity * deltaTime;
-            
-            // Check for floor collision
-            if (newY <= floorY) {
-                obj.object.position.y = floorY;
-                obj.isResting = true;
-                obj.velocity = 0;
-                
-                if (obj.object !== character) {
-                    // Plane settles flat
-                    obj.object.rotation.x = Math.PI / 2;
-                    obj.object.rotation.y = 0;
-                    obj.object.rotation.z = 0;
-                    
-                    // Small random offset for plane
-                    const scatter = 0.2;
-                    obj.object.position.x += (Math.random() - 0.5) * scatter;
-                    obj.object.position.z += (Math.random() - 0.5) * scatter;
-                } else {
-                    // Character settles in a dramatic fallen pose
-                    obj.object.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-                    obj.object.rotation.y = Math.random() * Math.PI * 2;
-                    obj.object.rotation.z = (Math.random() - 0.5) * 0.8;
-                    
-                    // Scatter character further from plane
-                    const characterScatter = 0.5;
-                    obj.object.position.x += (Math.random() - 0.5) * characterScatter;
-                    obj.object.position.z += (Math.random() - 0.5) * characterScatter;
+            obj.velocity += gravity * deltaTime * (isFalling ? 0.4 : 1);
+            obj.object.position.y -= obj.velocity * deltaTime;
+
+            // Rotate character during fall
+            if (obj.object === character) {
+                // Rotate forward to lay down
+                if (character.rotation.x < Math.PI / 2) {
+                    character.rotation.x += deltaTime * 1.5;
                 }
-            } else {
-                obj.object.position.y = newY;
+            }
+
+            // Update camera position to follow character
+            if (obj.object === character && isFalling) {
+                camera.position.x = character.position.x + 1.2;
+                camera.position.y = character.position.y + 0.4;
+                camera.position.z = character.position.z + 0.5;
+                controls.target.copy(character.position);
+            }
+
+            if (obj.object.position.y <= floorY) {
+                obj.object.position.y = floorY;
                 
-                // Different rotation behaviors while falling
-                if (obj.object === character) {
-                    // More dramatic tumbling for character
-                    obj.object.rotation.x += obj.rotationSpeed.x * deltaTime * 1.5;
-                    obj.object.rotation.y += obj.rotationSpeed.y * deltaTime * 1.5;
-                    obj.object.rotation.z += obj.rotationSpeed.z * deltaTime * 1.5;
+                if (obj.bounceCount < obj.maxBounces) {
+                    // Smaller bounce
+                    obj.velocity = -obj.velocity * obj.bounceFactor;
+                    obj.bounceCount++;
+                    
+                    // Smaller camera bump
+                    if (obj.object === character) {
+                        camera.position.y += 0.05;
+                    }
                 } else {
-                    // Simpler rotation for plane
-                    obj.object.rotation.x += deltaTime * 2;
-                    obj.object.rotation.z += deltaTime;
+                    obj.isResting = true;
+                    // Make sure character stays laying down
+                    if (obj.object === character) {
+                        character.rotation.x = Math.PI / 2;
+                    }
                 }
             }
         }
     });
 
-    // Update character mixer
-    if(characterMixer)
-    {
-        characterMixer.update(deltaTime)
-    }
-
-    // Update controls
-    controls.update()
-
-    // Render
     renderer.render(scene, camera)
-
-    // Call tick again on the next frame
     window.requestAnimationFrame(tick)
 }
 
