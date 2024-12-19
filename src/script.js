@@ -169,11 +169,37 @@ function startFalling(plane, characterObj) {
     if (!characterObj || isGameOver) return;
     
     isFalling = true;
+    playFallSound();
     
     // Stop any current animations
     if (jumpAction) jumpAction.stop();
-    if (idleAction) idleAction.stop();
     
+    const duration = 2.0;
+    const startY = plane.position.y;
+    const endY = -2;
+    
+    const startTime = Date.now();
+    
+    function animate() {
+        const currentTime = Date.now();
+        const elapsed = (currentTime - startTime) / 1000; // Convert to seconds
+        
+        if (elapsed < duration) {
+            const t = elapsed / duration;
+            plane.position.y = startY + (endY - startY) * t;
+            
+            // Play glass shatter when plane is near the floor
+            if (plane.position.y <= -1.5 && !plane.hasPlayedSound) {
+                playGlassSound();
+                plane.hasPlayedSound = true;
+            }
+            
+            requestAnimationFrame(animate);
+        }
+    }
+    animate();
+    
+    // Rest of the falling logic
     addToPhysics(plane);
     const physics = {
         object: characterObj,
@@ -364,6 +390,63 @@ directionalLight.shadow.camera.bottom = - 7
 directionalLight.position.set(0, 0, 0)
 scene.add(directionalLight)
 
+// Sound Effects
+const audioLoader = new THREE.AudioLoader();
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+// Create sound objects
+const jumpSound = new THREE.Audio(listener);
+const fallSound = new THREE.Audio(listener);
+const glassSound = new THREE.Audio(listener);
+const winSound = new THREE.Audio(listener);
+
+// Load sound files
+audioLoader.load('./sounds/jump_pop.mp3', function(buffer) {
+    jumpSound.setBuffer(buffer);
+    jumpSound.setVolume(0.5);
+});
+
+audioLoader.load('./sounds/fall_scream.mp3', function(buffer) {
+    fallSound.setBuffer(buffer);
+    fallSound.setVolume(0.4);
+});
+
+audioLoader.load('./sounds/glass_shatter.mp3', function(buffer) {
+    glassSound.setBuffer(buffer);
+    glassSound.setVolume(0.6);
+});
+
+audioLoader.load('./sounds/win_fanfare.mp3', function(buffer) {
+    winSound.setBuffer(buffer);
+    winSound.setVolume(0.7);
+});
+
+// Function to play sounds
+function playJumpSound() {
+    if (!jumpSound.isPlaying) {
+        jumpSound.play();
+    }
+}
+
+function playFallSound() {
+    if (!fallSound.isPlaying) {
+        fallSound.play();
+    }
+}
+
+function playGlassSound() {
+    if (!glassSound.isPlaying) {
+        glassSound.play();
+    }
+}
+
+function playWinSound() {
+    if (!winSound.isPlaying) {
+        winSound.play();
+    }
+}
+
 window.addEventListener('resize', () =>
 {
     sizes.width = window.innerWidth
@@ -376,28 +459,26 @@ window.addEventListener('resize', () =>
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
 
-const planeGeometry = new THREE.PlaneGeometry(0.5, 0.5)
+const planeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.02)
+const textureLoader = new THREE.TextureLoader()
+const noiseTexture = textureLoader.load('./textures/noise.png')
+noiseTexture.wrapS = THREE.RepeatWrapping
+noiseTexture.wrapT = THREE.RepeatWrapping
+
 const planeMaterial = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     transparent: true,
     opacity: 0.6,
-    roughness: 0.5,
-    metalness: 0.1,
-    transmission: 0.6,
-    thickness: 0.5,
-    clearcoat: 0.1,
-    clearcoatRoughness: 0.4,
-    side: THREE.DoubleSide,
-    envMapIntensity: 0.5
-})
-
-const textureLoader = new THREE.TextureLoader()
-const noiseTexture = textureLoader.load('./textures/noise.png', (texture) => {
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-    texture.repeat.set(4, 4)
-    planeMaterial.roughnessMap = texture
-    planeMaterial.transmissionMap = texture
-    planeMaterial.needsUpdate = true
+    roughness: 0.8,
+    transmission: 0.4,
+    thickness: 0.2,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.8,
+    ior: 1.5,
+    metalness: 0,
+    roughnessMap: noiseTexture,
+    envMapIntensity: 1.5,
+    side: THREE.DoubleSide
 })
 
 const planes = [];
@@ -414,7 +495,7 @@ for(let row = 0; row < 15; row++) {
         
         const x = startX + (col * xSpacing);
         const z = startZ - (row * zSpacing);
-        plane.position.set(x, 1.19, z);
+        plane.position.set(x, 1.185, z);
         
         const planeNumber = row * 2 + col + 1;
         plane.name = `plane${planeNumber}`;
@@ -443,12 +524,16 @@ window.addEventListener('click', (event) => {
         if (planeNumber >= validPairStart && planeNumber <= validPairEnd) {
             isJumping = true;
             
-            // Start jump animation
-            idleAction.stop();
-            jumpAction.reset();
-            jumpAction.setLoop(THREE.LoopOnce);
-            jumpAction.clampWhenFinished = true;
-            jumpAction.play();
+            // Delay jump sound by 0.5 seconds
+            setTimeout(() => {
+                playJumpSound();
+            }, 500);
+
+            if (jumpAction) {
+                jumpAction.reset();
+                jumpAction.clampWhenFinished = true;
+                jumpAction.play();
+            }
 
             const targetX = clickedPlane.position.x;
             const targetZ = clickedPlane.position.z;
@@ -482,6 +567,9 @@ window.addEventListener('click', (event) => {
                         startFalling(clickedPlane, character);
                     } else {
                         currentPairIndex++;
+                        if (currentPairIndex === 7) {
+                            playWinSound();
+                        }
                     }
                 }
             }
