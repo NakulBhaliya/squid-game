@@ -42,16 +42,9 @@ npm run dev
 npm run build
 ```
 
-## Technologies Used
-
-- Three.js
-- JavaScript
-- Vite
-- HTML/CSS
-
 ## Live Demo
 
-Try the game here: [Play Squid Game Glass Bridge](https://YOUR_USERNAME.github.io/squid-game/)
+Try the game here: [Play Squid Game Glass Bridge](https://nakulbhaliya.github.io/squid-game/)
 
 ## Credits
 
