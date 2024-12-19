@@ -169,7 +169,10 @@ function startFalling(plane, characterObj) {
     if (!isGameOver) {
         isFalling = true;
         playFallSound();
-        playGlassSound();
+        // Delay glass sound by 0.1 seconds
+        setTimeout(() => {
+            playGlassSound();
+        }, 100);
         slowMotionEffect();
 
         // Add physics to both character and glass
@@ -619,13 +622,9 @@ const tick = () =>
                 obj.object.position.y -= obj.velocity * deltaTime;
 
                 if (obj.isGlass) {
-                    // Rotate glass while falling
-                    obj.object.rotation.x += deltaTime;
-                    obj.object.rotation.z += deltaTime * 0.5;
-                    
-                    // Fade glass slightly
-                    if (obj.object.material && obj.object.material.opacity > 0.4) {
-                        obj.object.material.opacity -= deltaTime * 0.2;
+                    // Just fade glass
+                    if (obj.object.material && obj.object.material.opacity > 0.3) {
+                        obj.object.material.opacity -= deltaTime * 0.1;
                     }
                 } else if (obj.object === character) {
                     // Rotate character
@@ -645,11 +644,11 @@ const tick = () =>
                     obj.object.position.y = floorY;
                     
                     if (obj.bounceCount < obj.maxBounces) {
-                        // Apply bounce
-                        obj.velocity = -obj.velocity * obj.bounceFactor;
+                        // Apply bounce with reduced effect for glass
+                        const bounceFactor = obj.isGlass ? obj.bounceFactor * 0.5 : obj.bounceFactor;
+                        obj.velocity = -obj.velocity * bounceFactor;
                         obj.bounceCount++;
                         
-                        // Camera bump for character
                         if (obj.object === character) {
                             camera.position.y += 0.05;
                         }
@@ -658,9 +657,9 @@ const tick = () =>
                         if (obj.object === character) {
                             character.rotation.x = Math.PI / 2;
                         }
-                        // Keep glass visible on floor but remove from physics
                         if (obj.isGlass) {
-                            obj.object.position.y = floorY + 0.01; // Slightly above floor to prevent z-fighting
+                            // Keep glass visible on floor
+                            obj.object.position.y = floorY + 0.01;
                         }
                     }
                 }
