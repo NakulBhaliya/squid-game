@@ -7,7 +7,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="loading-screen" class="loading-screen">
+        <img src="./loading.jpg" alt="Loading" class="loading-image">
+    </div>
     <canvas class="webgl"></canvas>
+    <div id="instruction-page" class="instruction-page hidden">
+        <div class="instruction-content">
+            <h1>Glass Bridge Challenge</h1>
+            <div class="instructions">
+                <h2>How to Play:</h2>
+                <ol>
+                    <li>Choose your path carefully - one wrong step and the glass will break!</li>
+                    <li>You have 3 lives to complete the challenge</li>
+                    <li>Time your jumps and make it to the end</li>
+                </ol>
+            </div>
+            <button id="start-button" class="start-button">Start Game</button>
+        </div>
+    </div>
     <div id="hearts-container">💛💛💛</div>
     <button id="replay-button">Play Again</button>
     <div id="win-screen" class="win-screen">

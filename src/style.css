@@ -111,31 +111,25 @@ body
 
 #replay-button {
     position: fixed;
-    top: 50%;
+    bottom: 20px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     padding: 15px 30px;
-    font-size: 24px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid #FFD700;
-    color: #FFD700;
-    border-radius: 10px;
+    background: #ff0055;
+    color: white;
+    border: none;
+    border-radius: 5px;
     cursor: pointer;
-    backdrop-filter: blur(5px);
+    font-size: 18px;
+    font-weight: bold;
+    z-index: 1500;
     transition: all 0.3s ease;
-    text-shadow: 0 0 10px #FFD700;
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
     display: none;
-    z-index: 100;
 }
 
 #replay-button:hover {
-    background: rgba(255, 215, 0, 0.2);
-    transform: translate(-50%, -50%) scale(1.05);
-}
-
-#replay-button:active {
-    transform: translate(-50%, -50%) scale(0.95);
+    background: #ff1a6b;
+    transform: translateX(-50%) scale(1.1);
 }
 
 #replay-button.visible {
@@ -297,4 +291,95 @@ body
         opacity: 0;
         text-shadow: 0 0 0 #FFD700;
     }
+}
+
+.instruction-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.instruction-content {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    color: white;
+    max-width: 600px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.instruction-content h1 {
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    color: #FFD700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.instructions {
+    text-align: left;
+    margin: 30px 0;
+}
+
+.instructions h2 {
+    color: #FFD700;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.instructions ol {
+    padding-left: 20px;
+}
+
+.instructions li {
+    margin: 15px 0;
+    font-size: 1.1em;
+    line-height: 1.4;
+}
+
+.start-button {
+    background: #FFD700;
+    color: black;
+    border: none;
+    padding: 15px 40px;
+    font-size: 1.2em;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+.start-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 2000;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+.loading-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }

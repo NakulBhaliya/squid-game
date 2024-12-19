@@ -1,3 +1,30 @@
+const loadingScreen = document.getElementById('loading-screen');
+const instructionPage = document.getElementById('instruction-page');
+const startButton = document.getElementById('start-button');
+const replayButton = document.getElementById('replay-button');
+
+// Initially hide game elements
+document.getElementById('hearts-container').style.display = 'none';
+document.getElementById('replay-button').style.display = 'none';
+
+// Loading screen handler
+window.addEventListener('load', () => {
+    // Show loading screen for 2 seconds
+    setTimeout(() => {
+        loadingScreen.style.opacity = '0';
+        setTimeout(() => {
+            loadingScreen.classList.add('hidden');
+            instructionPage.classList.remove('hidden');
+        }, 500); // Wait for fade out animation
+    }, 2000);
+});
+
+// Start button click handler
+startButton.addEventListener('click', () => {
+    instructionPage.classList.add('hidden');
+    document.getElementById('hearts-container').style.display = 'block';
+});
+
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -39,7 +66,6 @@ let currentPairIndex = 0;
 let hearts = 3;
 let isGameOver = false;
 let weakPlanes = new Set();
-let replayButton = document.getElementById('replay-button');
 let heartsContainer = document.getElementById('hearts-container');
 
 const gameOverlay = document.createElement('div');
@@ -61,6 +87,7 @@ function updateHearts() {
 }
 
 function showGameOver() {
+    replayButton.style.display = 'block';
     gameOverlay.style.display = 'flex';
     
     // Create game over text as a button
@@ -102,7 +129,6 @@ function showGameOver() {
             if (currentHeart < 0) {
                 setTimeout(() => {
                     gameOverText.style.opacity = '1';
-                    replayButton.classList.add('visible');
                 }, 1000);
             }
         } else {
