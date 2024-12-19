@@ -166,99 +166,82 @@ function showFallAnimation(currentHearts) {
 }
 
 function startFalling(plane, characterObj) {
-    if (!characterObj || isGameOver) return;
-    
-    isFalling = true;
-    playFallSound();
-    
-    // Stop any current animations
-    if (jumpAction) jumpAction.stop();
-    
-    const duration = 2.0;
-    const startY = plane.position.y;
-    const endY = -2;
-    
-    const startTime = Date.now();
-    
-    function animate() {
-        const currentTime = Date.now();
-        const elapsed = (currentTime - startTime) / 1000; // Convert to seconds
-        
-        if (elapsed < duration) {
-            const t = elapsed / duration;
-            plane.position.y = startY + (endY - startY) * t;
+    if (!isGameOver) {
+        isFalling = true;
+        playFallSound();
+        playGlassSound();
+        slowMotionEffect();
+
+        // Add physics to both character and glass
+        const physics = {
+            object: characterObj,
+            velocity: 0,
+            bounceCount: 0,
+            maxBounces: 1,
+            bounceFactor: 0.3,
+            isResting: false
+        };
+
+        const glassPhysics = {
+            object: plane,
+            velocity: 0,
+            bounceCount: 0,
+            maxBounces: 1,
+            bounceFactor: 0.3,
+            isResting: false,
+            isGlass: true
+        };
+
+        // Make glass semi-transparent
+        if (plane.material) {
+            plane.material.transparent = true;
+            plane.material.opacity = 0.7;
+        }
+
+        // Add both to falling objects
+        fallingObjects.push(physics);
+        fallingObjects.push(glassPhysics);
+
+        // Stop any current animations
+        if (jumpAction) jumpAction.stop();
+
+        // Move camera to side view during fall
+        const originalCameraPos = camera.position.clone();
+        camera.position.set(
+            characterObj.position.x + 1.2,
+            characterObj.position.y + 0.4,
+            characterObj.position.z + 0.5
+        );
+        controls.target.copy(characterObj.position);
+
+        setTimeout(() => {
+            hearts--;
+            updateHearts();
             
-            // Play glass shatter when plane is near the floor
-            if (plane.position.y <= -1.5 && !plane.hasPlayedSound) {
-                playGlassSound();
-                plane.hasPlayedSound = true;
+            if (hearts <= 0) {
+                isGameOver = true;
+                showGameOver();
+                replayButton.textContent = 'Start Again';
+                replayButton.onclick = () => window.location.reload();
+            } else {
+                replayButton.textContent = 'Try Again';
+                replayButton.onclick = () => {
+                    resetCharacter();
+                    camera.position.copy(originalCameraPos);
+                    controls.target.set(0, 0.5, 0);
+                    character.rotation.set(0, 0, 0);
+                    fallingObjects = [];
+                    isFalling = false;
+                    if (idleAction) {
+                        idleAction.reset();
+                        idleAction.play();
+                    }
+                };
             }
-            
-            requestAnimationFrame(animate);
-        }
+            replayButton.classList.add('visible');
+            showFallAnimation(hearts);
+        }, 2000);
     }
-    animate();
-    
-    // Rest of the falling logic
-    addToPhysics(plane);
-    const physics = {
-        object: characterObj,
-        velocity: 0,
-        bounceCount: 0,
-        maxBounces: 1, // Reduced bounces
-        bounceFactor: 0.3, // Reduced bounce height
-        isResting: false
-    };
-    fallingObjects.push(physics);
-
-    // Move camera to side view during fall
-    const originalCameraPos = camera.position.clone();
-    camera.position.set(
-        characterObj.position.x + 1.2,
-        characterObj.position.y + 0.4,
-        characterObj.position.z + 0.5
-    );
-    controls.target.copy(characterObj.position);
-
-    setTimeout(() => {
-        hearts--;
-        updateHearts();
-        
-        if (hearts <= 0) {
-            isGameOver = true;
-            showGameOver();
-            replayButton.textContent = 'Start Again';
-            replayButton.onclick = () => {
-                const hearts = document.querySelector('.fall-hearts');
-                if (hearts) {
-                    document.body.removeChild(hearts);
-                }
-                window.location.reload();
-            };
-        } else {
-            replayButton.textContent = 'Try Again';
-            replayButton.onclick = () => {
-                const hearts = document.querySelector('.fall-hearts');
-                if (hearts) {
-                    document.body.removeChild(hearts);
-                }
-                resetCharacter();
-                // Reset camera and character
-                camera.position.copy(originalCameraPos);
-                controls.target.set(0, 0.5, 0);
-                character.rotation.set(0, 0, 0);
-                fallingObjects = [];
-                isFalling = false;
-                // Restart idle animation
-                if (idleAction) {
-                    idleAction.reset();
-                    idleAction.play();
-                }
-            };
-        }
-        replayButton.classList.add('visible');
-        showFallAnimation(hearts);
-    }, 2000);
 }
 
 function resetCharacter() {
@@ -447,6 +430,15 @@ function playWinSound() {
     }
 }
 
+let timeScale = 1;
+
+function slowMotionEffect(duration = 1000) {
+    timeScale = 0.2; // Slow down to 20% speed
+    setTimeout(() => {
+        timeScale = 1; // Return to normal speed
+    }, duration);
+}
+
 window.addEventListener('resize', () =>
 {
     sizes.width = window.innerWidth
@@ -609,61 +601,72 @@ let previousTime = Date.now()
 const tick = () =>
 {
     const currentTime = Date.now()
-    // Adjusted slow motion to 0.35
-    const deltaTime = isFalling ? (currentTime - previousTime) / 1000 * 0.35 : (currentTime - previousTime) / 1000;
-    previousTime = currentTime
+    const deltaTime = clock.getDelta() * timeScale;
 
     controls.update()
 
-    // Update character animations only if not falling
-    if (characterMixer && !isFalling) {
+    // Update mixer
+    if(characterMixer) {
         characterMixer.update(deltaTime)
     }
 
-    // Update physics and camera
-    fallingObjects.forEach(obj => {
-        if (!obj.isResting) {
-            obj.velocity += gravity * deltaTime * (isFalling ? 0.4 : 1);
-            obj.object.position.y -= obj.velocity * deltaTime;
+    // Update physics
+    if(character && character.position && !isGameOver) {
+        fallingObjects.forEach((obj, index) => {
+            if (!obj.isResting) {
+                // Apply same gravity to both character and glass
+                obj.velocity += gravity * deltaTime * (isFalling ? 0.4 : 1);
+                obj.object.position.y -= obj.velocity * deltaTime;
 
-            // Rotate character during fall
-            if (obj.object === character) {
-                // Rotate forward to lay down
-                if (character.rotation.x < Math.PI / 2) {
-                    character.rotation.x += deltaTime * 1.5;
-                }
-            }
-
-            // Update camera position to follow character
-            if (obj.object === character && isFalling) {
-                camera.position.x = character.position.x + 1.2;
-                camera.position.y = character.position.y + 0.4;
-                camera.position.z = character.position.z + 0.5;
-                controls.target.copy(character.position);
-            }
-
-            if (obj.object.position.y <= floorY) {
-                obj.object.position.y = floorY;
-                
-                if (obj.bounceCount < obj.maxBounces) {
-                    // Smaller bounce
-                    obj.velocity = -obj.velocity * obj.bounceFactor;
-                    obj.bounceCount++;
+                if (obj.isGlass) {
+                    // Rotate glass while falling
+                    obj.object.rotation.x += deltaTime;
+                    obj.object.rotation.z += deltaTime * 0.5;
                     
-                    // Smaller camera bump
-                    if (obj.object === character) {
-                        camera.position.y += 0.05;
+                    // Fade glass slightly
+                    if (obj.object.material && obj.object.material.opacity > 0.4) {
+                        obj.object.material.opacity -= deltaTime * 0.2;
                     }
-                } else {
-                    obj.isResting = true;
-                    // Make sure character stays laying down
-                    if (obj.object === character) {
-                        character.rotation.x = Math.PI / 2;
+                } else if (obj.object === character) {
+                    // Rotate character
+                    if (character.rotation.x < Math.PI / 2) {
+                        character.rotation.x += deltaTime * 1.5;
+                    }
+                    
+                    // Update camera to follow character
+                    camera.position.x = character.position.x + 1.2;
+                    camera.position.y = character.position.y + 0.4;
+                    camera.position.z = character.position.z + 0.5;
+                    controls.target.copy(character.position);
+                }
+
+                // Handle floor collision
+                if (obj.object.position.y <= floorY) {
+                    obj.object.position.y = floorY;
+                    
+                    if (obj.bounceCount < obj.maxBounces) {
+                        // Apply bounce
+                        obj.velocity = -obj.velocity * obj.bounceFactor;
+                        obj.bounceCount++;
+                        
+                        // Camera bump for character
+                        if (obj.object === character) {
+                            camera.position.y += 0.05;
+                        }
+                    } else {
+                        obj.isResting = true;
+                        if (obj.object === character) {
+                            character.rotation.x = Math.PI / 2;
+                        }
+                        // Keep glass visible on floor but remove from physics
+                        if (obj.isGlass) {
+                            obj.object.position.y = floorY + 0.01; // Slightly above floor to prevent z-fighting
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
 
     renderer.render(scene, camera)
     window.requestAnimationFrame(tick)
