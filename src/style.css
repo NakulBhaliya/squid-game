@@ -108,28 +108,33 @@ body
     50% { transform: scale(1.1); filter: brightness(1.2); }
     100% { transform: scale(1); filter: brightness(1); }
 }
-
 #replay-button {
     position: fixed;
-    bottom: 20px;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     padding: 15px 30px;
-    background: #ff0055;
-    color: white;
-    border: none;
-    border-radius: 5px;
+    font-size: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid #FFD700;
+    color: #FFD700;
+    border-radius: 10px;
     cursor: pointer;
-    font-size: 18px;
-    font-weight: bold;
-    z-index: 1500;
+    backdrop-filter: blur(5px);
     transition: all 0.3s ease;
+    text-shadow: 0 0 10px #FFD700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
     display: none;
+    z-index: 100;
 }
 
 #replay-button:hover {
-    background: #ff1a6b;
-    transform: translateX(-50%) scale(1.1);
+    background: rgba(255, 215, 0, 0.2);
+    transform: translate(-50%, -50%) scale(1.05);
+}
+
+#replay-button:active {
+    transform: translate(-50%, -50%) scale(0.95);
 }
 
 #replay-button.visible {

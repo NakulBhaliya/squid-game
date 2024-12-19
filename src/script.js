@@ -267,7 +267,9 @@ function startFalling(plane, characterObj) {
                     }
                 };
             }
-            replayButton.classList.add('visible');
+            // replayButton.classList.add('visible');
+            replayButton.style.display = 'block';
+
             showFallAnimation(hearts);
         }, 2000);
     }
@@ -283,7 +285,9 @@ function resetCharacter() {
     isFalling = false;
     currentPairIndex = 0;
     
-    replayButton.classList.remove('visible');
+    // replayButton.classList.remove('visible');
+    replayButton.style.display = 'none';
+
 }
 
 function selectWeakPlanes() {
